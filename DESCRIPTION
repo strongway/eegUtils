@@ -1,18 +1,19 @@
 Package: eegUtils
 Type: Package
 Title: A collection of utilities for EEG analysis 
-Version: 0.1.15.9001
-Date: 2018-05-25
-Authors@R: person("Matt", "Craddock", role = c("aut", "cre"), email = "matt@mattcraddock.com")
+Version: 0.3.0.9000
+Date: 2019-02-16
+Authors@R: c(
+  person("Matt", "Craddock", role = c("aut", "cre"), email = "matt@mattcraddock.com"),
+  person("Matti", "Vuorre", role = "ctb", email = "mv2521@columbia.edu"))
 Maintainer: Matt Craddock <matt@mattcraddock.com>
-Description: A collection of functions for basic EEG processing. Includes import
+Description: A collection of functions for EEG processing. Includes import
   functions for Biosemi (BDF) and Neuroscan (CNT), topographical plotting, referencing, and epoching.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports:
   ggplot2,
-  broom,
   dplyr,
   scales,
   mgcv,
@@ -22,22 +23,31 @@ Imports:
   miniUI,
   rlang,
   MASS,
+  Matrix,
   edfReader,
   signal,
   tibble,
   stats,
   matrixStats,
-  plotly,
   R.matlab,
   viridis,
-  pracma
+  pracma,
+  abind,
+  data.table,
+  ini,
+  shinydashboard,
+  plotly,
+  future.apply
 Depends:
   R (>= 2.10)
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.1
 Suggests: testthat,
+    vdiffr,
     covr,
     knitr,
-    rmarkdown
+    rmarkdown,
+    ica,
+    geigen
 URL: https://github.com/craddm/eegUtils
 BugReports: https://github.com/craddm/eegUtils/issues
 VignetteBuilder: knitr

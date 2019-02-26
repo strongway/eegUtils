@@ -1,49 +1,58 @@
-
 context("Plotting functions")
-load("EEG_epochs.rda")
 load("EEGdat.rda")
 test_data <- import_raw("Newtest17-256.bdf")
-
-test_that("Plotting of single epoch timecourses works as expected", {
-  expect_equal_to_reference(plot_timecourse(EEGdat), file = "avg_all_elecs.rds")
-  expect_equal_to_reference(plot_timecourse(EEGdat, electrode = "Pz"),
-                            file = "Pz_single_epoch.rds")
-  expect_equal_to_reference(plot_timecourse(EEGdat, baseline = c(-100, 0),
-                                            electrode = "Pz"),
-                            file = "Pz_bl_corrected.rds")
-})
+demo_epochs <- electrode_locations(demo_epochs,
+                                   montage = "biosemi64alpha",
+                                   overwrite = TRUE)
 
 test_that("Plotting of data with multiple epochs works as expected", {
-  expect_equal_to_reference(plot_timecourse(EEG_epochs),
-                            file = "avg_epochs_elecs.rds")
-  expect_equal_to_reference(plot_timecourse(EEGdat, electrode = "Pz"),
-                            file = "Pz_epochs.rds")
-  expect_equal_to_reference(plot_timecourse(EEGdat, baseline = c(-200, 0),
-                                            electrode = "Oz"),
-                            file = "Pz_bl_epochs.rds")
+  vdiffr::expect_doppelganger("epochs plot",
+                              plot_timecourse(demo_epochs))
+  vdiffr::expect_doppelganger("A29 only epochs",
+                              plot_timecourse(demo_epochs,
+                                              electrode = "A29"))
+  vdiffr::expect_doppelganger("A29 baseline corr epochs",
+                              plot_timecourse(demo_epochs,
+                                              baseline = c(-.2, 0),
+                                              electrode = "A29"))
 })
 
 test_that("Plotting of butterfly plots from epochs", {
-  expect_equal_to_reference(plot_butterfly(EEG_epochs),
-                            file = "butterfly_epochs.rds")
+  vdiffr::expect_doppelganger("butterfly epochs",
+                              plot_butterfly(demo_epochs))
+  vdiffr::expect_doppelganger("butterfly epochs baseline",
+                              plot_butterfly(demo_epochs,
+                                             baseline = c(-.2, 0),
+                                             electrode = "A29"))
 })
 
 test_that("Topoplots", {
-  expect_equal_to_reference(topoplot(EEG_epochs), file = "topo_epochs.rds")
-  expect_equal_to_reference(topoplot(EEG_epochs, time_lim = c(150, 200)),
-                            file = "150_250_epochs.rds")
-  expect_equal_to_reference(topoplot(EEGdat, time_lim = c(150, 200),
-                                            method = "gam"),
-                            file = "gam_topo.rds")
+  skip_on_appveyor()
+  vdiffr::expect_doppelganger("topoplot of epochs",
+                              topoplot(demo_epochs))
+  vdiffr::expect_doppelganger("topoplot of epochs 150-200ms",
+                              topoplot(demo_epochs,
+                                       time_lim = c(.150, .200)))
+  vdiffr::expect_doppelganger("GAM topo",
+                              topoplot(EEGdat,
+                                       time_lim = c(150, 200),
+                                       method = "gam"))
 })
+
 
 test_that("erp_raster and erp_image function", {
   test_epo <- epoch_data(test_data, 255)
-  expect_s3_class(erp_image(test_epo, electrode = "A15"), "gg")
-  expect_s3_class(erp_raster(test_epo), "gg")
+  expect_s3_class(erp_image(demo_epochs,
+                            electrode = "A13"),
+                  "gg")
+  expect_s3_class(erp_raster(demo_epochs),
+                  "gg")
 
-  expect_error(electrode_locations(test_epo, montage = "bio2"))
-  test_epo <- electrode_locations(test_epo, montage = "biosemi64alpha")
-  expect_is(test_epo$chan_info, "data.frame")
+  expect_error(electrode_locations(test_epo,
+                                   montage = "bio2"))
+  test_epo <- electrode_locations(test_epo,
+                                  montage = "biosemi64alpha")
+  expect_is(test_epo$chan_info,
+            "data.frame")
 
 })

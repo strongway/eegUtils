@@ -4,3 +4,8 @@
 ^codecov\.yml$
 ^docs$
 ^_pkgdown\.yml$
+^appveyor\.yml$
+^data-raw$
+^codemeta\.json$
+^README\.rmd$
+^README_files$

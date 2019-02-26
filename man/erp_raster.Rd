@@ -4,19 +4,22 @@
 \alias{erp_raster}
 \title{ERP raster plot}
 \usage{
-erp_raster(data, anat_order = TRUE, time_lim = NULL, clim = NULL)
+erp_raster(data, anat_order = TRUE, time_lim = NULL, clim = NULL,
+  interpolate = FALSE)
 }
 \arguments{
 \item{data}{An \code{eeg_epochs} object}
 
 \item{anat_order}{Arrange the channels in a more anatomically representative
-order.}
+order. Defaults to TRUE.}
 
 \item{time_lim}{Time limits of plot - should be a character vector (e.g.
 c(-.2, .5))}
 
 \item{clim}{Character vector of min and max values of plotting colour range.
 e.g. c(-5,5). Defaults to min and max.}
+
+\item{interpolate}{Smooth the raster plot. Defaults to FALSE.}
 }
 \description{
 Create a plot showing the ERP at every channel as a single ERP image. By
@@ -26,6 +29,10 @@ rows from the most posterior electrode on the right hemisphere to the most
 anterior electrode on the left hemisphere, with midline electrodes in the
 middle. If no locations are found, it simply displays the data in its
 original order.
+}
+\examples{
+erp_raster(demo_epochs)
+erp_raster(demo_epochs, interpolate = TRUE)
 }
 \author{
 Matt Craddock, \email{matt@mattcraddock.com}

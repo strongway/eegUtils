@@ -3,24 +3,29 @@
 \name{run_ICA}
 \alias{run_ICA}
 \alias{run_ICA.eeg_epochs}
-\title{ICA for EEG data}
+\title{Independent Component Analysis for EEG data}
 \usage{
 run_ICA(data, ...)
 
-\method{run_ICA}{eeg_epochs}(data, method = "sobi", ...)
+\method{run_ICA}{eeg_epochs}(data, method = "sobi", maxit = 500, ...)
 }
 \arguments{
-\item{data}{Data frame to be ICAed.}
+\item{data}{Data to be ICAed.}
 
 \item{...}{Other parameters passed to function.}
 
-\item{method}{Only SOBI is currently implemented, so this is ignored.}
+\item{method}{"sobi" (default), "fastica", or "infomax".}
+
+\item{maxit}{Maximum number of iterations of the Infomax and Fastica ICA
+algorithms.}
+}
+\value{
+An \code{eeg_ICA} object containing an ICA decomposition
 }
 \description{
-Implements SOBI ICA. Although SOBI exists in R already, thanks to the JADE
-package, it doesn't respect epoch boundaries when computing correlations
-across different time lags. This is a port of SOBI from EEGLAB. Currently
-only works on epoched data.
+Performs Independent Component Analysis for EEG data. Currently only
+available with on epoched data. Implements three different methods of ICA -
+fastica, extended Infomax, and Second-Order Blind Identification (SOBI).
 }
 \section{Methods (by class)}{
 \itemize{

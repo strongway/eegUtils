@@ -4,13 +4,26 @@
 \alias{select_elecs}
 \alias{select_elecs.default}
 \alias{select_elecs.eeg_data}
-\title{Select electrodes from a given dataset.}
+\alias{select_elecs.eeg_evoked}
+\alias{select_elecs.eeg_ICA}
+\alias{select_elecs.eeg_tfr}
+\title{Select electrodes from a given dataset}
 \usage{
 select_elecs(data, ...)
 
-\method{select_elecs}{default}(data, electrode = NULL, keep = TRUE, ...)
+\method{select_elecs}{default}(data, electrode = NULL, keep = TRUE,
+  ...)
 
 \method{select_elecs}{eeg_data}(data, electrode, keep = TRUE,
+  df_out = FALSE, ...)
+
+\method{select_elecs}{eeg_evoked}(data, electrode = NULL, keep = TRUE,
+  df_out = FALSE, ...)
+
+\method{select_elecs}{eeg_ICA}(data, component, keep = TRUE,
+  df_out = FALSE, ...)
+
+\method{select_elecs}{eeg_tfr}(data, electrode, keep = TRUE,
   df_out = FALSE, ...)
 }
 \arguments{
@@ -26,6 +39,8 @@ electrodes.}
 
 \item{df_out}{Defaults to FALSE. Set to TRUE to return a dataframe rather
 than an \code{eeg_data} object.}
+
+\item{component}{Component to select}
 }
 \value{
 Data frame with only data from the chosen electrodes
@@ -40,8 +55,26 @@ This is a generic function for selection of electrodes from an EEG dataset.
 \item \code{default}: Select electrodes from a generic data frame.
 
 \item \code{eeg_data}: Select electrodes from a \code{eeg_data} object.
+
+\item \code{eeg_evoked}: Select electrode from an eeg_evoked object
+
+\item \code{eeg_ICA}: Select components from \code{eeg_ICA} objects.
+
+\item \code{eeg_tfr}: Select electrodes from \code{eeg_tfr} objects.
 }}
 
+\examples{
+names(demo_epochs$signals)
+keep_A5 <- select_elecs(demo_epochs, electrode = "A5")
+remove_A5 <- select_elecs(demo_epochs, electrode = "A5", keep = FALSE)
+
+}
+\seealso{
+\code{\link{select_times}} and \code{\link{select_epochs}}
+
+Other Data selection functions: \code{\link{select_times}}
+}
 \author{
 Matt Craddock, \email{matt@mattcraddock.com}
 }
+\concept{Data selection functions}

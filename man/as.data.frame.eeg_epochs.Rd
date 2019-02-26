@@ -4,8 +4,9 @@
 \alias{as.data.frame.eeg_epochs}
 \title{Convert \code{eeg_epochs} object to data.frame}
 \usage{
-\method{as.data.frame}{eeg_epochs}(x, row.names = NULL, optional = FALSE,
-  long = FALSE, events = FALSE, cond_labels = NULL, ...)
+\method{as.data.frame}{eeg_epochs}(x, row.names = NULL,
+  optional = FALSE, long = FALSE, events = FALSE, cond_labels,
+  coords = TRUE, ...)
 }
 \arguments{
 \item{x}{Object of class \code{eeg_epochs}}
@@ -16,10 +17,13 @@
 
 \item{long}{Convert to long format. Defaults to FALSE.}
 
-\item{events}{Include events in output. Defaults to FALSE.}
+\item{events}{Include events in output. Defaults to FALSE. Currently ignored.}
 
 \item{cond_labels}{Add column tagging epochs with events that have matching
-labels.}
+labels. Deprecated. Metainfo from the epochs structure is now added
+automatically.}
+
+\item{coords}{Include electrode coordinates in output. Ignored if long == FALSE.}
 
 \item{...}{arguments for other as.data.frame commands}
 }

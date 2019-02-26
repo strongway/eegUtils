@@ -3,22 +3,19 @@
 \name{select_epochs}
 \alias{select_epochs}
 \alias{select_epochs.default}
-\alias{select_epochs.eeg_data}
 \alias{select_epochs.eeg_epochs}
 \alias{select_epochs.eeg_ICA}
-\title{Select epochs from eeg_data}
+\title{Select epochs}
 \usage{
 select_epochs(data, ...)
 
 \method{select_epochs}{default}(data, ...)
 
-\method{select_epochs}{eeg_data}(data, ...)
-
 \method{select_epochs}{eeg_epochs}(data, epoch_events = NULL,
   epoch_no = NULL, keep = TRUE, df_out = FALSE, ...)
 
-\method{select_epochs}{eeg_ICA}(data, epoch_events = NULL, epoch_no = NULL,
-  keep = TRUE, df_out = FALSE, ...)
+\method{select_epochs}{eeg_ICA}(data, epoch_events = NULL,
+  epoch_no = NULL, keep = TRUE, df_out = FALSE, ...)
 }
 \arguments{
 \item{data}{\code{eeg_epochs} object from which to select epochs.}
@@ -42,13 +39,21 @@ This is a generic function for selecting epochs from an epoched data set.
 \itemize{
 \item \code{default}: Select from generic object
 
-\item \code{eeg_data}: Select epochs from \code{eeg_data} objects.
-
 \item \code{eeg_epochs}: Selection of epochs from \code{eeg_epochs} objects.
 
 \item \code{eeg_ICA}: Selection of epochs from \code{eeg_ICA} objects.
 }}
 
+\examples{
+select_epochs(demo_epochs, epoch_no = 1:5)
+(demo_ica <- run_ICA(demo_epochs))
+select_epochs(demo_ica, epoch_no = 1:5)
+
+}
+\seealso{
+\code{\link{select_times}} and \code{\link{select_elecs}}
+}
 \author{
 Matt Craddock, \email{matt@mattcraddock.com}
 }
+\concept{data selection functions}

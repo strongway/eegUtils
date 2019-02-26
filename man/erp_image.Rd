@@ -2,12 +2,26 @@
 % Please edit documentation in R/epoch_images.R
 \name{erp_image}
 \alias{erp_image}
+\alias{erp_image.default}
+\alias{erp_image.eeg_epochs}
+\alias{erp_image.eeg_ICA}
 \title{Plot ERP images}
 \usage{
-erp_image(data, electrode = "Cz", smoothing = 10, clim = NULL)
+erp_image(data, ...)
+
+\method{erp_image}{default}(data, electrode = "Cz", smoothing = 10,
+  clim = NULL, interpolate = FALSE, ...)
+
+\method{erp_image}{eeg_epochs}(data, electrode = "Cz", smoothing = 10,
+  clim = NULL, interpolate = FALSE, ...)
+
+\method{erp_image}{eeg_ICA}(data, component = "Comp1", smoothing = 10,
+  clim = NULL, interpolate = FALSE, ...)
 }
 \arguments{
 \item{data}{Data frame to be plotted. Requires an amplitude column.}
+
+\item{...}{Other arguments passed to the method.}
 
 \item{electrode}{electrode at which to generate an ERP image.}
 
@@ -15,11 +29,26 @@ erp_image(data, electrode = "Cz", smoothing = 10, clim = NULL)
 
 \item{clim}{Character vector of min and max values of plotting colour range.
 e.g. c(-5,5). Defaults to min and max.}
+
+\item{interpolate}{Perform interpolation to produce smoother looking plots. Defaults to FALSE.}
+
+\item{component}{\code{eeg_ICA} component to plot}
 }
 \description{
 Plot an ERP image from a single electrode. Smooths over a series of trials in
 order to make across-trial patterns more apparent.
 }
-\author{
-Matt Craddock, \email{matt@mattcraddock.com}
+\section{Methods (by class)}{
+\itemize{
+\item \code{default}: Default function operates on normal data frames
+
+\item \code{eeg_epochs}: Create an \code{erp_image} from \code{eeg_epochs}
+
+\item \code{eeg_ICA}: Plot component image from \code{eeg_ICA}
+}}
+
+\examples{
+erp_image(demo_epochs, electrode = "A31")
+erp_image(demo_epochs, electrode = "A31", interpolate = TRUE)
+erp_image(demo_epochs, electrode = "A31", smoothing = 5)
 }

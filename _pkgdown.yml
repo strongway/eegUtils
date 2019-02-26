@@ -1,0 +1,62 @@
+url: http://craddm.github.io/eegUtils
+
+template:
+  params:
+    bootswatch: flatly
+
+reference:
+  - title: IO
+    desc: >
+      Functions for importing data or electrode information into R.
+    contents:
+      - starts_with("import")
+  - title: Processing
+    desc: >
+      Functions for pre-processing and processing data
+    contents:
+      - compute_csd
+      - eeg_filter
+      - eeg_reference
+      - eeg_downsample
+      - electrode_locations
+      - epoch_data
+      - interp_elecs
+      - rm_baseline
+      - run_ICA
+      - tag_events
+  - title: Artefact rejection
+    desc: >
+      Functions for artefact rejection.
+    contents:
+      - starts_with("ar")
+  - title: Selection
+    desc: Functions for selecting subsets of data
+    contents:
+      - starts_with("select")
+  - title: Plotting
+    desc: >
+      Functions for plotting data
+    contents:
+      - browse_data
+      - erp_image
+      - erp_raster
+      - erp_scalp
+      - geom_topo
+      - interactive_scalp
+      - starts_with("plot_")
+      - topoplot
+  - title: Frequency analysis
+    desc: Functions related to (time-)frequency analysis
+    contents:
+      - compute_psd
+      - compute_tfr
+  - title: Converters
+    desc: Functions for converting objects to data.frames
+    contents:
+      - starts_with("as.")
+  - title: Accessors
+    desc: Functions for accessing and modifying specific elements of an object
+    contents:
+      - channels
+      - epochs
+      - events

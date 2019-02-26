@@ -2,33 +2,53 @@
 % Please edit documentation in R/topoplot.R
 \name{topoplot}
 \alias{topoplot}
+\alias{topoplot.default}
 \alias{topoplot.data.frame}
 \alias{topoplot.eeg_data}
+\alias{topoplot.eeg_epochs}
 \alias{topoplot.eeg_ICA}
+\alias{topoplot.eeg_tfr}
 \title{Topographical Plotting Function for EEG}
 \usage{
 topoplot(data, ...)
 
+\method{topoplot}{default}(data, ...)
+
 \method{topoplot}{data.frame}(data, time_lim = NULL, limits = NULL,
-  chanLocs = NULL, method = "Biharmonic", r = NULL, grid_res = 67,
+  chanLocs = NULL, method = "Biharmonic", r = NULL, grid_res = 300,
   palette = "RdBu", interp_limit = "skirt", contour = TRUE,
   chan_marker = "point", quantity = "amplitude", montage = NULL,
-  colourmap, ...)
+  colourmap, highlights = NULL, scaling = 1, groups = NULL, ...)
 
 \method{topoplot}{eeg_data}(data, time_lim = NULL, limits = NULL,
-  chanLocs = NULL, method = "Biharmonic", r = NULL, grid_res = 67,
-  palette = "RdBu", interp_limit = "skirt", contour = TRUE,
-  chan_marker = "point", quantity = "amplitude", montage = NULL, ...)
-
-\method{topoplot}{eeg_ICA}(data, time_lim = NULL, limits = NULL,
-  chanLocs = NULL, method = "Biharmonic", r = NULL, grid_res = 67,
+  chanLocs = NULL, method = "Biharmonic", r = NULL, grid_res = 300,
   palette = "RdBu", interp_limit = "skirt", contour = TRUE,
   chan_marker = "point", quantity = "amplitude", montage = NULL,
-  colourmap, comp, ...)
+  highlights = NULL, scaling = 1, ...)
+
+\method{topoplot}{eeg_epochs}(data, time_lim = NULL, limits = NULL,
+  chanLocs = NULL, method = "Biharmonic", r = NULL, grid_res = 300,
+  palette = "RdBu", interp_limit = "skirt", contour = TRUE,
+  chan_marker = "point", quantity = "amplitude", montage = NULL,
+  highlights = NULL, scaling = 1, groups = NULL, ...)
+
+\method{topoplot}{eeg_ICA}(data, component, time_lim = NULL,
+  limits = NULL, chanLocs = NULL, method = "Biharmonic", r = NULL,
+  grid_res = 300, palette = "RdBu", interp_limit = "skirt",
+  contour = TRUE, chan_marker = "point", quantity = "amplitude",
+  montage = NULL, colourmap, highlights = NULL, scaling = scaling,
+  ...)
+
+\method{topoplot}{eeg_tfr}(data, time_lim = NULL, limits = NULL,
+  chanLocs = NULL, method = "Biharmonic", r = NULL, grid_res = 300,
+  palette = "RdBu", interp_limit = "skirt", contour = TRUE,
+  chan_marker = "point", quantity = "power", montage = NULL,
+  highlights = NULL, scaling = 1, freq_range = NULL, ...)
 }
 \arguments{
-\item{data}{An EEG dataset. Must have columns x, y, and amplitude at present.
-x and y are (Cartesian) electrode co-ordinates), amplitude is amplitude.}
+\item{data}{An EEG dataset. If the input is a data.frame, then it must have
+columns x, y, and amplitude at present. x and y are (Cartesian) electrode
+co-ordinates), amplitude is amplitude.}
 
 \item{...}{Various arguments passed to specific functions}
 
@@ -75,24 +95,33 @@ only 'biosemi64alpha' available other than default 10/20 system)}
 
 \item{colourmap}{Deprecated, use palette instead.}
 
-\item{comp}{Component to plot (numeric)}
+\item{highlights}{Electrodes to highlight (in white).}
+
+\item{scaling}{Scaling multiplication factor for labels and any plot lines. Defaults to 1.}
+
+\item{groups}{Column name for groups to retain.}
+
+\item{component}{Component to plot (numeric)}
+
+\item{freq_range}{Range of frequencies to average over.}
 }
 \description{
 Allows topographical plotting of functional data. Output is a ggplot2 object.
-
-The functions works for both standard data frames and objects of class
-\code{eeg_data}.
-
-Both \code{eeg_epochs} and \code{eeg_data} objects are supported.
 }
 \section{Methods (by class)}{
 \itemize{
+\item \code{default}: Default method for data frames.
+
 \item \code{data.frame}: Topographical plotting of data.frames and other non
 eeg_data objects.
 
 \item \code{eeg_data}: Topographical plotting of \code{eeg_data} objects.
 
+\item \code{eeg_epochs}: Topographical plotting of \code{eeg_epochs} objects.
+
 \item \code{eeg_ICA}: Topographical plot for \code{eeg_ICA} objects
+
+\item \code{eeg_tfr}: Topographical plotting of \code{eeg_tfr} objects.
 }}
 
 \section{Notes on usage of Generalized Additive Models for interpolation}{

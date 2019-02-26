@@ -1,22 +1,310 @@
 #' FASTER EEG artefact rejection
 #'
-#' Whelan et al (2011). Not yet implemented.
+#' An implementation of the FASTER artefact rejection method for EEG by Nolan,
+#' Whelan & Reilly (2010) FASTER: Fully Automated Statistical Thresholding for
+#' EEG artifact Rejection. J Neurosci Methods. Not yet fully implemented.
 #'
 #' @author Matt Craddock \email{matt@@mattcraddock.com}
 #'
-#' @param data An object of class \code{eeg_epochs}
+#' @param .data An object of class \code{eeg_epochs}
 #' @param ... Parameters passed to FASTER
-#' @noRd
+#' @references
+#' Nolan, Whelan & Reilly (2010). FASTER: Fully Automated Statistical Thresholding for
+#' EEG artifact Rejection. J Neurosci Methods.
+#' @export
 
-eeg_FASTER <- function(data, ...) {
-  UseMethod("eeg_FASTER", data)
+ar_FASTER <- function(.data, ...) {
+  UseMethod("ar_FASTER", .data)
 }
 
-#' @describeIn eeg_FASTER Run FASTER on \code{eeg_epochs}
+#' @describeIn ar_FASTER Run FASTER on \code{eeg_epochs}
+#' @export
+ar_FASTER.eeg_epochs <- function(.data, ...) {
+
+  check_ci_str(.data$chan_info)
+
+  channels(.data) <- validate_channels(channels(.data),
+                                       channel_names(.data))
+
+  # TODO - keep a record of which trials/channels etc are removed/interpolated
+  # and allow marking for inspection rather than outright rejection.
+
+  if (is.null(.data$reference)) {
+    orig_ref <- NULL
+    excluded <- NULL
+  } else {
+    orig_ref <- .data$reference$ref_chans
+    excluded <- .data$reference$excluded
+  }
+
+  orig_chan_info <- channels(.data)
+  # Re-reference to single electrode, any should be fine, Fz is arbitrary default.
+  # Note - should allow user to specify in case Fz is a known bad electrode.
+
+  # if ("Fz" %in% names(data$signals)) {
+  #   data <- eeg_reference(data, ref_chans = "Fz", exclude = excluded)
+  # } else {
+  #   data <- eeg_reference(data, ref_chans = names(data$signals)[14], exclude = excluded)
+  # }
+
+  orig_names <- names(.data$signals)
+  # Exclude ref chan from subsequent computations (may be better to alter reref_eeg...)
+  data_chans <- !(orig_names %in% .data$reference$ref_chans)
+
+  # Step 1: channel statistics
+  bad_chans <- faster_chans(.data$signals[, data_chans])
+  bad_chan_n <- names(.data$signals)[bad_chans]
+  message(paste("Globally bad channels:",
+                paste(bad_chan_n,
+                      collapse = " ")))
+
+  if (length(bad_chan_n) > 0) {
+
+    if (is.null(.data$chan_info)) {
+      warning("no chan_info, removing chans.")
+      .data <- select_elecs(.data,
+                           electrode = bad_chan_n,
+                           keep = FALSE)
+    } else {
+
+      #Check for any bad channels that are not in the chan_info
+      check_bads <- bad_chan_n %in% .data$chan_info$electrode
+
+      # check for any bad channels that have missing coordinates
+      which_bad <- .data$chan_info$electrode %in% bad_chan_n
+      missing_coords <- FALSE
+
+      if (any(which_bad)){
+        missing_coords <- apply(is.na(.data$chan_info[which_bad, ]), 1, any)
+      }
+
+      missing_bads <- bad_chan_n[!check_bads | missing_coords]
+
+      if (length(missing_bads) > 0 ) {
+        bad_chan_n <- bad_chan_n[!bad_chan_n %in% missing_bads]
+        warning("Missing chan_info for bad channel(s): ",
+                paste0(missing_bads,
+                       collapse = " "), ". Removing channels.")
+        .data <- select_elecs(.data,
+                              electrode = missing_bads,
+                              keep = FALSE)
+      }
+
+      if (length(bad_chan_n) > 0) {
+        .data <- interp_elecs(.data,
+                              bad_chan_n)
+      }
+    }
+  }
+
+  # Step 2: epoch statistics
+  bad_epochs <- faster_epochs(.data)
+  bad_epochs <- unique(.data$timings$epoch)[bad_epochs]
+  message(paste("Globally bad epochs:",
+                paste(bad_epochs,
+                      collapse = " ")))
+  .data <- select_epochs(.data,
+                        epoch_no = bad_epochs,
+                        keep = FALSE)
+
+  # Step 3: ICA stats (not currently implemented)
+
+  # Step 4: Channels in Epochs
+  .data <- faster_cine(.data)
+
+  # Step 5: Grand average step (not currently implemented, probably never will be!)
+
+  # Return to original reference, if one existed.
+  if (!is.null(orig_ref)) {
+    .data <- eeg_reference(.data,
+                           ref_chans = orig_ref,
+                           exclude = excluded)
+  }
+
+  .data$chan_info <- orig_chan_info
+  .data
+}
+
+#' Perform global bad channel detection for FASTER
+#'
+#' @param data A matrix of EEG data signals
+#' @param sds Standard deviation thresholds
+#' @param ... Further parameters (tbd)
+#' @keywords internal
+
+faster_chans <- function(data, sds = 3, ...) {
+  chan_hurst <- scale(quick_hurst(data))
+  chan_vars <- scale(apply(data,
+                           2,
+                           stats::var))
+  chan_corrs <- scale(colMeans(abs(stats::cor(data))))
+  bad_chans <- matrix(c(abs(chan_hurst) > sds,
+                        abs(chan_vars) > sds,
+                        abs(chan_corrs) > sds),
+                      nrow = 3,
+                      byrow = TRUE)
+  bad_chans <- apply(bad_chans,
+                     2,
+                     any)
+  bad_chans
+}
+
+#' Perform global bad epoch detection for FASTER
+#'
+#' @param data \code{eeg_epochs} object
+#' @param ... Further parameters (tbd)
+#' @keywords internal
+
+faster_epochs <- function(.data, ...) {
+  chans <- channel_names(.data)
+  .data <- data.table::as.data.table(.data)
+  chan_means <- .data[, lapply(.SD, mean), .SDcols = chans]
+  #colMeans(data$signals)
+  #data$signals <- split(data$signals,
+  #                      data$timings$epoch)
+  epoch_range <- .data[, lapply(.SD, function(x) max(x) - min(x)),
+                          .SDcols = chans,
+                          by = epoch]
+  epoch_range <- epoch_range[, .(Mean = rowMeans(.SD)), by = epoch]
+  epoch_range <- abs(scale(epoch_range$Mean)) > 3
+
+  epoch_diffs <- .data[, lapply(.SD, mean),
+                       .SDcols = chans,
+                       by = epoch][, lapply(.SD, function(x) x - mean(x)),
+                                   .SDcols = chans][ ,
+                                                     .(Mean = rowMeans(.SD))]
+  epoch_diffs <- abs(scale(epoch_diffs$Mean)) > 3
+
+  epoch_vars <- .data[, lapply(.SD, var), .SDcols = chans,
+                      by = epoch][, apply(.SD, 1, mean),
+                                  .SDcols = chans]
+  epoch_vars <- abs(scale(epoch_vars)) > 3
+
+  bad_epochs <- matrix(c(rowSums(epoch_vars) > 0,
+                         rowSums(epoch_range) > 0,
+                         rowSums(epoch_diffs) > 0),
+                       ncol = 3)
+  bad_epochs <- apply(bad_epochs, 1, any)
+  bad_epochs
+}
+
+#' FASTER detection of bad channels in single epochs
+#'
+#' @param data \code{eeg_epochs} object.
+#' @param ... further parameters (tbd)
+#' @keywords internal
+
+faster_cine <- function(.data, ...) {
+
+  # get xyz coords only
+  xyz_coords <- .data$chan_info[, c("electrode",
+                                    "cart_x",
+                                    "cart_y",
+                                    "cart_z")]
+  # check for rows with missing values
+  missing_values <- apply(xyz_coords, 1, function(x) any(is.na(x)))
+  #remove any rows with missing values
+  xyz_coords <- xyz_coords[!missing_values, ]
+
+  keep_chans <- names(.data$signals) %in% xyz_coords$electrode
+
+  epochs <- split(.data$signals,
+                  .data$timings$epoch)
+
+  # Work out which chans are bad according to FASTER in each epoch
+  bad_chans <- lapply(epochs,
+                      faster_epo_stat)
+
+  # remove channel names that are for channels we have no locations for
+  bad_chans <- lapply(bad_chans,
+                      function(x) x[x %in% xyz_coords$electrode])
+
+  # remove any epochs where there were no bad channels
+  bad_chans <- bad_chans[lapply(bad_chans, length) > 0]
+
+  # Get a transfer matrix for each epoch
+  bad_coords <- lapply(bad_chans,
+                       function(x) interp_weights(xyz_coords,
+                                                  x))
+
+  # Work out which epochs have no transfer matrix (either all good or no bad
+  # chans with locations)
+  # good_epochs <- vapply(bad_coords,
+  #                       is.null,
+  #                       FUN.VALUE = logical(1))
+
+  bad_coords <- bad_coords[lapply(bad_coords, length) > 0]
+
+  # If there's nothing bad in any epoch, return the data
+  if (length(bad_coords) == 0) {
+    return(.data)
+  }
+
+  bad_epochs <- names(bad_coords)
+
+  new_epochs <- lapply(bad_epochs,
+                       function(x) interp_chans(epochs[[x]],
+                                                bad_chans[[x]],
+                                                !keep_chans,
+                                                bad_coords[[x]]))
+
+  epochs <- replace(epochs, bad_epochs, new_epochs)
+  epochs <- data.table::rbindlist(epochs)
+  .data$signals <- as.data.frame(epochs)
+  .data
+}
+
 #' @noRd
-eeg_FASTER.eeg_epochs <- function(data, ...) {
+interp_weights <- function(xyz_coords, x) {
 
+  xyz_coords[, c("cart_x", "cart_y", "cart_z")] <-
+    norm_sphere(xyz_coords[, c("cart_x", "cart_y", "cart_z")])
 
+  bad_coords <- xyz_coords[xyz_coords$electrode %in% x, ]
+
+  if (nrow(bad_coords) == 0) {
+    return(NULL)
+  }
+
+  good_coords <- xyz_coords[!xyz_coords$electrode %in% x, ]
+
+  transfer_mat <- spheric_spline(good_coords[, c("cart_x", "cart_y", "cart_z")],
+                                 xyz_coords[, c("cart_x", "cart_y", "cart_z")])
+
+  transfer_mat
+}
+
+#' Quickly calculate simple Hurst exponent for a matrix
+#'
+#' @param data matrix of EEG signals
+#' @importFrom data.table data.table
+#' @keywords internal
+
+quick_hurst <- function(.data) {
+  n <- nrow(.data)
+  .data <- data.table::data.table(.data)
+  dat_cumsum <- .data[, lapply(.SD, cumsum)]
+  rs <- dat_cumsum[, lapply(.SD, max)] - dat_cumsum[, lapply(.SD, min)]
+  rs <- rs / .data[, lapply(.SD, stats::sd)]#column_sd
+  as.numeric(log(rs) / log(n))
+}
+
+#' Calculate statistics for each channel in an epoch and identify bad channels
+#'
+#' @param data a matrix of signals from a single epoch
+#' @keywords internal
+
+faster_epo_stat <- function(data, chan_means) {
+
+  measures <- data.frame(vars = matrixStats::colVars(as.matrix(data)),
+                         medgrad = matrixStats::colMedians(diff(as.matrix(data))),
+                         range_diff = t(diff(t(matrixStats::colRanges(as.matrix(data)))))
+                         #dev = sweep(data, 2, chan_means)
+                         )
+  # Check if any measure is above 3 standard deviations
+  bad_chans <- rowSums(scale(measures) > 3) > 0
+  bad_chans <- names(data)[bad_chans]
+  bad_chans
 }
 
 #' Simple absolute value thresholding
@@ -34,12 +322,19 @@ eeg_FASTER.eeg_epochs <- function(data, ...) {
 #' @param ... Other arguments passed to eeg_ar_thresh
 #' @export
 
-eeg_ar_thresh <- function(data, threshold, reject = FALSE, ...) {
-  UseMethod("eeg_ar_thresh", data)
+ar_thresh <- function(data,
+                      threshold,
+                      reject = FALSE,
+                      ...) {
+  UseMethod("ar_thresh", data)
 }
 
-#' @describeIn eeg_ar_thresh Reject data using a simple threshold.
-eeg_ar_thresh.eeg_data <- function(data, threshold, reject = FALSE, ...) {
+#' @describeIn ar_thresh Reject data using a simple threshold.
+#' @export
+ar_thresh.eeg_data <- function(data,
+                               threshold,
+                               reject = FALSE,
+                               ...) {
 
   if (length(threshold) == 1) {
     threshold <- c(threshold, -threshold)
@@ -60,8 +355,11 @@ eeg_ar_thresh.eeg_data <- function(data, threshold, reject = FALSE, ...) {
   data
 }
 
-#' @describeIn eeg_ar_thresh Reject data using a simple threshold.
-eeg_ar_thresh.eeg_epochs <- function(data, threshold, reject = FALSE, ...) {
+#' @describeIn ar_thresh Reject data using a simple threshold.
+#' @export
+ar_thresh.eeg_epochs <- function(data,
+                                 threshold,
+                                 reject = FALSE, ...) {
 
   if (length(threshold) == 1) {
     threshold <- c(threshold, -threshold)
@@ -70,10 +368,12 @@ eeg_ar_thresh.eeg_epochs <- function(data, threshold, reject = FALSE, ...) {
   crossed_thresh <- data$signals > max(threshold) |
     data$signals < min(threshold)
 
+  crossed_thresh <- rowSums(crossed_thresh) == 1
+  rej_epochs <- unique(data$timings$epoch[crossed_thresh])
   if (reject) {
-    crossed_thresh <- rowSums(crossed_thresh) == 1
-    rej_epochs <- unique(data$timings$epoch[crossed_thresh])
-    data <- select_epochs(data, rej_epochs, keep = FALSE)
+    data <- select_epochs(data,
+                          rej_epochs,
+                          keep = FALSE)
     # consider creating select_timerange vs select_timepoints
   } else {
     data$reject <- rej_epochs
@@ -87,218 +387,148 @@ eeg_ar_thresh.eeg_epochs <- function(data, threshold, reject = FALSE, ...) {
 #'
 #' @param data Data as a \code{eeg_data} or \code{eeg_epochs} object.
 #' @param ... Other parameters passed to the functions.
-#' @noRd
+#' @keywords internal
 
 channel_stats <- function(data, ...) {
   UseMethod("channel_stats", data)
 }
 
-#' @describeIn channel_stats Calculate channel statistics for \code{eeg_data} objects.
-#' @noRd
+#' @describeIn channel_stats Calculate channel statistics for \code{eeg_data}
+#'   objects.
+#' @keywords internal
 channel_stats.eeg_data <- function(data, ...) {
+
   chan_means <- colMeans(data$signals)
-  chan_sds <- apply(data$signals, 2, sd)
-  chan_var <- apply(data$signals, 2, var)
+  #chan_means <- as.data.table(data$signals)
+  #chan_means <- chan_means[, lapply(.SD, mean)]
+  chan_sds <- apply(data$signals, 2, stats::sd)
+  chan_var <- apply(data$signals, 2, stats::var)
   chan_kurt <- apply(data$signals, 2, kurtosis)
+
+  data.frame(electrode = names(data$signals),
+             means = chan_means,
+             variance = chan_var,
+             kurtosis = chan_kurt
+             )
 }
 
 #' Epoch statistics
+#'
+#' Calculate various statistics for each epoch in the data
 #'
 #' @author Matt Craddock \email{matt@@mattcraddock.com}
 #'
 #' @param data Data as a \code{eeg_data} or \code{eeg_epochs} object.
 #' @param ... Other parameters passed to the functions.
-#' @noRd
+#' @keywords internal
 
 epoch_stats <- function(data, ...) {
   UseMethod("epoch_stats", data)
 }
 
 #' @describeIn epoch_stats Calculate statistics for each epoch.
-#' @noRd
+#' @keywords internal
 epoch_stats.eeg_epochs <- function(data, ...) {
-  epoch_nos <- unique(data$timings$epoch)
-  data <- split(data$signals, data$timings$epoch)
-  epoch_means <- lapply(data, colMeans)
-  epoch_means <- as.data.frame(do.call("rbind", epoch_means))
-  epoch_means$epoch_nos <- epoch_nos
-  epoch_means
+  data$signals$epoch <- data$timings$epoch
+  data <- data.table::data.table(as.data.frame(data$signals))
+  epoch_vars <- data[, lapply(.SD, var), by = epoch]
+  epoch_kur <- data[, lapply(.SD, kurtosis), by = epoch]
+  epoch_max <- data[, lapply(.SD, max), by = epoch]
+  epoch_min <- data[, lapply(.SD, min), by = epoch]
+  stats_out <- data.table::rbindlist(list(max = epoch_max,
+                                          min = epoch_min,
+                                          variance = epoch_vars,
+                                          kurtosis = epoch_kur),
+                                     idcol = "measure")
+  stats_out
 }
-
-#' Channel interpolation
-#'
-#' Interpolate EEG channels using a spherical spline (Perrin et al., 1989). The
-#' data must have channel locations attached.
-#'
-#' @author Matt Craddock \email{matt@@mattcraddock.com}
-#'
-#' @param data Data as a \code{eeg_data} or \code{eeg_epochs} object.
-#' @param bad_elecs Name(s) of electrode(s) to interpolate.
-#' @param ... Other parameters passed to the functions.
-#' @export
-
-interp_elecs <- function(data, bad_elecs, ...) {
-  UseMethod("interp_elecs", data)
-}
-
-#' @describeIn interp_elecs Interpolate EEG channel(s)
-#' @export
-interp_elecs.eeg_data <- function(data, bad_elecs, ...) {
-
-  if (is.null(data$chan_info)) {
-    stop("No channel locations found.")
-  }
-  xyz_coords <- pol_to_sph(data$chan_info$theta, data$chan_info$radius)
-  rads <- sqrt(xyz_coords$x ^ 2 + xyz_coords$y ^ 2 + xyz_coords$z ^ 2)
-  xyz_coords <- xyz_coords / rads
-
-  bad_select <- toupper(data$chan_info$electrode) %in% toupper(bad_elecs)
-  xyz_bad <- xyz_coords[bad_select, ]
-  xyz_good <- xyz_coords[!bad_select, ]
-
-  sigs_select <- toupper(names(data$signals)) %in%
-    toupper(data$chan_info$electrode)
-
-  sigs <- data$signals[sigs_select]
-
-  bad_cols <- toupper(names(sigs)) %in% toupper(bad_elecs)
-
-  mm <- spheric_spline(xyz_good, xyz_bad, sigs[!bad_cols])
-
-  if (ncol(mm) == 1) {
-    mm <- as.vector(mm)
-  }
-  sigs[bad_cols] <- mm
-
-  data$signals[, sigs_select] <- sigs
-  data
-
-}
-
-
-#' Calculate a spherical spline smooth for interpolation of electrodes
-#'
-#' @author Matt Craddock \email{matt@mattcraddock.com}
-#'
-#' @param good_elecs Electrodes with positions that do not need interpolation
-#' @param bad_elecs Electrodes to be interpolated
-#' @param data Raw data
-#' @noRd
-
-spheric_spline <- function(good_elecs, bad_elecs, data) {
-
-  lec <- compute_g(good_elecs, good_elecs)
-  ph <- compute_g(bad_elecs, good_elecs)
-
-  meandata <- rowMeans(data)
-  data <- data - meandata
-  data$CC <- 0
-
-  C <- as.matrix(data) %*% t(MASS::ginv(rbind(lec, 1)))
-
-  mmm <- matrix(NA, nrow = nrow(bad_elecs), ncol = nrow(data))
-
-  if (nrow(bad_elecs) > 1) {
-    for (i in seq(1, nrow(bad_elecs))) {
-      mmm[i, ] <- rowSums(C * t(matrix(rep(ph[i, ],
-                                           nrow(data)),
-                                       nrow = ncol(C))))
-    }
-  } else {
-    mmm <- rowSums(C * t(matrix(rep(ph, nrow(data)), nrow = ncol(C))))
-  }
-
-  mmm <- mmm + matrix(rep(meandata, nrow(bad_elecs)), nrow = nrow(bad_elecs))
-  t(mmm) # output should be transposed to be in appropriate columns
-
-}
-
-#' Compute the g function for two sets of locations of channel locations on the
-#' unit sphere.
-#'
-#' @author Matt Craddock \email{matt@@mattcraddock.com}
-#'
-#' @param xyz_coords A set of electrode locations on a unit sphere.
-#' @param xyz_elecs A set of electrode locations on a unit sphere.
-#' @importFrom pracma legendre
-#' @noRd
-
-compute_g <- function(xyz_coords, xyz_elecs) {
-
-  EI <- 1 - sqrt((matrix(rep(xyz_coords[, 1],
-                             nrow(xyz_elecs)),
-                         nrow = nrow(xyz_elecs)) -
-                    matrix(rep(xyz_elecs[, 1],
-                               each = nrow(xyz_coords)),
-                           ncol = nrow(xyz_coords))) ^ 2 +
-                   (matrix(rep(xyz_coords[, 2],
-                               nrow(xyz_elecs)),
-                           nrow = nrow(xyz_elecs)) -
-                      matrix(rep(xyz_elecs[, 2],
-                                 each = nrow(xyz_coords)),
-                             ncol = nrow(xyz_coords))) ^ 2 +
-                   (matrix(rep(xyz_coords[, 3],
-                               nrow(xyz_elecs)),
-                           nrow = nrow(xyz_elecs)) -
-                      matrix(rep(xyz_elecs[, 3],
-                                 each = nrow(xyz_coords)),
-                             ncol = nrow(xyz_coords))) ^ 2)
-
-  dim(EI) <- c(nrow(xyz_coords), nrow(xyz_elecs))
-
-  g <- 0
-
-  for (i in seq(1, 7)) {
-    poly_xy <- pracma::legendre(i, EI)
-    dim(poly_xy) <- c(i + 1, nrow(EI), ncol(EI))
-    g <- g + ((2 * i + 1) / (i ^ 4 * (i + 1) ^ 4)) * poly_xy[1, , ]
-  }
-
-  g <- g / (4 * pi)
-
-}
-
 
 #' Calculate kurtosis
 #'
 #' @param data Data to calculate kurtosis for
-#' @noRd
+#' @keywords internal
 
 kurtosis <- function(data) {
   m4 <- mean((data - mean(data)) ^ 4)
-  kurt <- m4 / (sd(data) ^ 4) - 3
+  kurt <- m4 / (stats::sd(data) ^ 4) - 3
   kurt
 }
 
-#' Regress EOG
+#' Remove EOG using regression
 #'
-#' @param data data to regress
-#' @param heog Horizontal EOG channels
-#' @param veog Vertical EOG channels
-#' @param bipolarize Bipolarize the EOG channels. Only works when four channels are supplied (2 HEOG and 2 VEOG).
+#' Calculates and removes the contribution of eye movements to the EEG signal using
+#' least-squares regression.
+#'
+#' @param .data data to regress - \code{eeg_data} or \code{eeg_epochs}
+#' @param heog Horizontal EOG channel labels
+#' @param veog Vertical EOG channel labels
+#' @param bipolarize Bipolarize the EOG channels. Only works when four channels
+#'   are supplied (2 HEOG and 2 VEOG).
 #' @author Matt Craddock, \email{matt@@mattcraddock.com}
-#' @noRd
+#' @export
 
-eeg_ar_eogreg <- function(data, heog, veog, bipolarize = TRUE, ...) {
-  UseMethod("eeg_ar_eogreg", data)
+ar_eogreg <- function(.data,
+                      heog,
+                      veog,
+                      bipolarize = TRUE) {
+  UseMethod("ar_eogreg", .data)
+}
+
+#' @rdname ar_eogreg
+#' @export
+ar_eogreg.eeg_data <- function(.data,
+                               heog,
+                               veog,
+                               bipolarize = TRUE) {
+
+  eogreg(.data,
+         heog,
+         veog,
+         bipolarize)
+}
+
+#' @rdname ar_eogreg
+#' @export
+ar_eogreg.eeg_epochs <- function(.data,
+                                 heog,
+                                 veog,
+                                 bipolarize = TRUE) {
+
+  eogreg(.data,
+         heog,
+         veog,
+         bipolarize)
 
 }
 
-eeg_ar_eogreg.eeg_data <- function(data, heog, veog, bipolarize = TRUE, ...) {
+#' @noRd
+eogreg <- function(.data,
+                   heog,
+                   veog,
+                   bipolarize) {
 
-  heog_only <- select_elecs(data, electrode = heog)
-  veog_only <- select_elecs(data, electrode = veog)
-
-  EOG <- data.frame(heog = NA, veog = NA)
   if (bipolarize) {
-    EOG$heog <- heog_only$signals[, 1] - heog_only$signals[, 2]
-    EOG$veog <- veog_only$signals[, 1] - veog_only$signals[, 2]
+    EOG <- bip_EOG(.data$signals, heog, veog)
   } else {
-    EOG$heog <- heog_only$signals[, 1]
-    EOG$veog <- veog_only$signals[, 1]
+    HEOG <- .data$signals[, heog, drop = TRUE]
+    VEOG <- .data$signals[, veog, drop = TRUE]
+    EOG <- data.frame(HEOG, VEOG)
   }
 
-  hmz <- solve(EOG * t(EOG), EOG * t(data$signals))
-  hmz
+  data_chans <- channel_names(.data)[!channel_names(.data) %in% c(heog, veog)]
+  hmz <- solve(crossprod(as.matrix(EOG)),
+               crossprod(as.matrix(EOG),
+                         as.matrix(.data$signals[, data_chans])))
+  .data$signals[, data_chans] <- .data$signals[, data_chans] - crossprod(t(as.matrix(EOG)), hmz)
+  .data
+}
 
+#' @noRd
+bip_EOG <- function(.data,
+                    HEOG,
+                    VEOG) {
+  HEOG <- .data[, HEOG[1]] - .data[, HEOG[2]]
+  VEOG <- .data[, VEOG[1]] - .data[, VEOG[2]]
+  EOG <- data.frame(HEOG, VEOG)
+  EOG
 }

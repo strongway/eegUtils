@@ -19,12 +19,14 @@ tag_events <- function(data, ...) {
 
 #' @param trigs Character vector of trigger numbers
 #' @param event_label Labels for the events.
-#' @importFrom dplyr left_join
 #' @importFrom tibble as_tibble
 #' @export
 #' @describeIn tag_events Tag events in an \code{eeg_data} object
 
-tag_events.eeg_data <- function(data, trigs, event_label, ...) {
+tag_events.eeg_data <- function(data,
+                                trigs,
+                                event_label,
+                                ...) {
 
   if (length(trigs) != length(event_label)) {
     stop("Trigs and event_label parameters must be the same length.")
@@ -34,24 +36,30 @@ tag_events.eeg_data <- function(data, trigs, event_label, ...) {
     stop(paste0("Trigger(s) not found. Check trigger values with list_events()."))
   }
 
-  data$events <- dplyr::left_join(data$events,
-                                  tibble::tibble(event_type = trigs,
-                                                 event_label = event_label),
-                                  by = "event_type")
+  data$events <- merge(data$events,
+                       data.frame(event_type = trigs,
+                                  event_label = as.character(event_label),
+                                  stringsAsFactors = FALSE))
+  data$events <- tibble::as.tibble(data$events)
   data
 }
 
 #' @describeIn tag_events Tag events in an epoched dataset
-tag_events.eeg_epochs <- function(data, trigs, event_label, ...) {
+#' @export
+tag_events.eeg_epochs <- function(data,
+                                  trigs,
+                                  event_label,
+                                  ...) {
 
   if (length(trigs) != length(event_label)) {
     stop("Trigs and event_label parameters must be the same length.")
   }
 
-  data$events <- dplyr::left_join(data$events,
-                                  tibble::tibble(event_type = trigs,
-                                                 event_label = event_label),
-                                  by = "event_type")
+  data$events <- merge(data$events,
+                       data.frame(event_type = trigs,
+                                  event_label = as.character(event_label),
+                                  stringsAsFactors = FALSE))
+  data$events <- tibble::as.tibble(data$events)
   data
 }
 
@@ -60,12 +68,12 @@ tag_events.eeg_epochs <- function(data, trigs, event_label, ...) {
 #' List trigger types and any labels found in an \code{eeg_data} object.
 #'
 #' @author Matt Craddock \email{matt@@mattcraddock.com}
-#'
 #' @param data An object of class \code{eeg_data}
-#'
+#' @examples
+#' list_events(demo_epochs)
 #' @export
-#'
 #' @family event handlers
+#' @seealso \code{\link{tag_events}} and \code{\link{list_epochs}}
 
 list_events <- function(data) {
   if (!is.eeg_data(data)) {
@@ -90,6 +98,7 @@ list_events <- function(data) {
 #' @param ... Additional arguments
 #' @export
 #' @family event handlers
+#' @seealso \code{\link{tag_events}} and \code{\link{list_events}}
 
 list_epochs <- function(data, ...) {
   UseMethod("list_epochs", data)
@@ -105,4 +114,126 @@ list_epochs.eeg_epochs <- function(data, ...) {
 #' @export
 list_epochs.eeg_ICA <- function(data, ...) {
   data$events[, c("epoch", "event_type", "event_label")]
+}
+
+#' Modify events structure
+#'
+#' Get or set the values in the `events` structure of an eegUtils object.
+#'
+#' @examples
+#' events(demo_epochs)
+#' events(demo_epochs) <- mutate(events(demo_epochs),
+#'  sf = dplyr::case_when(
+#'          event_type %% 2 == 0 ~ "HSF",
+#'          event_type %% 2 == 1 ~ "LSF",
+#'  ))
+#' events(demo_epochs)
+#'
+#' @author Matt Craddock \email{matt@@mattcraddock.com}
+#' @param .data \code{eegUtils} object to view
+#' @export
+events <- function(.data) {
+  UseMethod("events", .data)
+}
+
+#' @export
+events.eeg_data <- function(.data) {
+  .data$events
+}
+
+#' @export
+events.eeg_epochs <- function(.data) {
+  .data$events
+}
+
+
+#' @param value Value to replace `events` structure with.
+#' @rdname events
+#' @export
+`events<-` <- function(.data, value) {
+  UseMethod("events<-", .data)
+}
+
+#' @rdname events
+#' @export
+`events<-.eeg_epochs` <- function(.data, value) {
+
+  .data$events <- value
+  .data
+}
+
+#' @rdname events
+#' @export
+`events<-.eeg_data` <- function(.data, value) {
+  .data$events <- value
+  .data
+}
+
+
+
+#' Tag epochs with labels
+#'
+#' Tag epochs with labels indicating details such as experimental condition,
+#' based on the occurrence of event triggers from the events() structure. This
+#' adds a new column to the epochs structure in an \code{eeg_epochs} object.
+#'
+#' @param .data An \code{eegUtils} object
+#' @param ... Additional arguments.
+#' @export
+tag_epochs <- function(.data,
+                       ...) {
+  UseMethod("tag_epochs", .data)
+}
+
+#'@rdname tag_epochs
+#'@export
+tag_epochs.default <- function(.data,
+                               ...) {
+
+}
+
+#'@describeIn tag_epochs Tag epochs in an \code{eeg_epochs} object.
+#'@param event_type Label epochs according to specific event_types (typically a
+#'  trigger)
+#'@param event_label Label epochs according to specific event_labels
+#'@export
+tag_epochs.eeg_epochs <- function(.data,
+                                  event_type = NULL,
+                                  event_label = NULL,
+                                  ...) {
+
+  # need to work out how to deal with multiple labels in single epochs.
+  # 1) error and demand the labels be specified?
+  # 2) request specific event_types?
+  # 3) allow specification of new column name in the epochs structure?
+
+  if (!is.null(event_type) && !is.null(event_label)) {
+    stop("Only event_type or event_label should be supplied, not both.")
+  } else if (is.null(event_type) && is.null(event_label)) {
+   epochs(.data) <- dplyr::left_join(epochs(.data),
+                                     dplyr::select(events(.data),
+                                                   epoch,
+                                                   event_type,
+                                                   event_label),
+                                     by = "epoch")
+  }
+
+  if (!is.null(event_type)) {
+    epochs(.data) <- dplyr::left_join(epochs(.data),
+                                    dplyr::select(events(.data),
+                                                  epoch,
+                                                  event_type),
+                                    by = "epoch")
+    return(.data)
+  }
+
+  if (!is.null(event_label)) {
+    epochs(.data) <- dplyr::left_join(epochs(.data),
+                                      dplyr::select(events(.data),
+                                                    epoch,
+                                                    event_label),
+                                      by = "epoch")
+    return(.data)
+  }
+  .data
 }
